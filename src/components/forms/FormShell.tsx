@@ -175,13 +175,15 @@ export function FormShell({ form, vagas, submittedVagaIds }: FormShellProps) {
     try {
       // Upload photos via server-side API (evita CORS)
       const uploadPhoto = async (file: File, type: string) => {
-        const buffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        let base64 = "";
-        for (let i = 0; i < bytes.length; i++) {
-          base64 += String.fromCharCode(bytes[i]);
-        }
-        base64 = btoa(base64);
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(",")[1]);
+          };
+          reader.onerror = () => reject(new Error("Erro ao ler arquivo"));
+          reader.readAsDataURL(file);
+        });
         const res = await fetch("/api/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
