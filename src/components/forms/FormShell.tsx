@@ -97,11 +97,13 @@ export function FormShell({ form, vagas, submittedVagaIds }: FormShellProps) {
   });
   const [insErrors, setInsErrors] = useState<Record<string, string>>({});
 
-  // Photos
-  const [cpfPhoto, setCpfPhoto] = useState<File | null>(null);
+  // Photos — store base64 immediately on selection to avoid File reference issues
+  const [cpfBase64, setCpfBase64] = useState<string | null>(null);
   const [cpfPreview, setCpfPreview] = useState<string | null>(null);
-  const [passportPhoto, setPassportPhoto] = useState<File | null>(null);
+  const [passportBase64, setPassportBase64] = useState<string | null>(null);
   const [passportPreview, setPassportPreview] = useState<string | null>(null);
+  const [cpfContentType, setCpfContentType] = useState<string>("");
+  const [passportContentType, setPassportContentType] = useState<string>("");
 
   const handleP = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;
@@ -113,13 +115,29 @@ export function FormShell({ form, vagas, submittedVagaIds }: FormShellProps) {
   };
 
   const handleFileSelect = (type: "cpf" | "passport") => (file: File | null) => {
-    if (type === "cpf") {
-      setCpfPhoto(file);
-      setCpfPreview(file ? URL.createObjectURL(file) : null);
-    } else {
-      setPassportPhoto(file);
-      setPassportPreview(file ? URL.createObjectURL(file) : null);
+    if (!file) {
+      if (type === "cpf") { setCpfBase64(null); setCpfPreview(null); }
+      else { setPassportBase64(null); setPassportPreview(null); }
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      if (type === "cpf") {
+        setCpfBase64(result.split(",")[1]);
+        setCpfContentType(file.type);
+        setCpfPreview(result);
+      } else {
+        setPassportBase64(result.split(",")[1]);
+        setPassportContentType(file.type);
+        setPassportPreview(result);
+      }
+    };
+    reader.onerror = () => {
+      if (type === "cpf") setCpfPreview(URL.createObjectURL(file));
+      else setPassportPreview(URL.createObjectURL(file));
+    };
+    reader.readAsDataURL(file);
   };
 
   const validatePassengerData = () => {
@@ -173,23 +191,14 @@ export function FormShell({ form, vagas, submittedVagaIds }: FormShellProps) {
     setSubmitError(null);
 
     try {
-      // Upload photos via server-side API (evita CORS)
-      const uploadPhoto = async (file: File, type: string) => {
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(",")[1]);
-          };
-          reader.onerror = () => reject(new Error("Erro ao ler arquivo"));
-          reader.readAsDataURL(file);
-        });
+      // Upload photos via server-side API (base64 já lido na seleção)
+      const uploadPhoto = async (base64: string, contentType: string, type: string) => {
         const res = await fetch("/api/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             file_name: `${type}.jpg`,
-            content_type: file.type,
+            content_type: contentType,
             base64,
           }),
         });
@@ -201,8 +210,8 @@ export function FormShell({ form, vagas, submittedVagaIds }: FormShellProps) {
         return path;
       };
 
-      const cpfPath = cpfPhoto ? await uploadPhoto(cpfPhoto, "cpf") : null;
-      const passportPath = passportPhoto ? await uploadPhoto(passportPhoto, "passport") : null;
+      const cpfPath = cpfBase64 ? await uploadPhoto(cpfBase64, cpfContentType, "cpf") : null;
+      const passportPath = passportBase64 ? await uploadPhoto(passportBase64, passportContentType, "passport") : null;
 
       // Submit passenger data with photo paths
       const res = await fetch(`/api/forms/${form.slug}/submit`, {
@@ -272,10 +281,12 @@ export function FormShell({ form, vagas, submittedVagaIds }: FormShellProps) {
           address_city: "",
           address_state: "",
         });
-        setCpfPhoto(null);
+        setCpfBase64(null);
         setCpfPreview(null);
-        setPassportPhoto(null);
+        setCpfContentType("");
+        setPassportBase64(null);
         setPassportPreview(null);
+        setPassportContentType("");
         setPErrors({});
         setInsErrors({});
         setStep("passenger-data");
