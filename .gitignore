@@ -36,3 +36,5 @@ yarn-error.log*
 # turbo
 .turbo
 formularios-calerie-1434248041e5.json
+
+.vercel

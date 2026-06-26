@@ -43,9 +43,11 @@ export default async function FormDetail({ params }: PageProps) {
 
   const confirmedCount = passengersList?.filter((p) => p.status === "confirmed").length || 0;
 
-  const baseUrl = process.env.NODE_ENV === "development"
-    ? "http://localhost:3000"
-    : `https://${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("https://", "").split(".")[0] || "localhost:3000"}`;
+  const baseUrl = typeof window !== "undefined"
+    ? window.location.origin
+    : process.env.NODE_ENV === "development"
+      ? "http://localhost:3000"
+      : `https://${process.env.VERCEL_URL || "calerie-forms.vercel.app"}`;
 
   return (
     <div className="space-y-6">
