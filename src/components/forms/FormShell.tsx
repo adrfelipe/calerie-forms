@@ -175,18 +175,18 @@ export function FormShell({ form, vagas, submittedVagaIds }: FormShellProps) {
     try {
       // Upload photos via server-side API (evita CORS)
       const uploadPhoto = async (file: File, type: string) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("type", type);
         const res = await fetch("/api/upload", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file_name: `${type}.jpg`, content_type: file.type }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: "Erro no upload" }));
           throw new Error(err.error || "Erro ao enviar foto");
         }
-        const { path } = await res.json();
+        const { url, path } = await res.json();
+        const putRes = await fetch(url, { method: "PUT", body: file });
+        if (!putRes.ok) throw new Error("Upload da foto falhou");
         return path;
       };
 
